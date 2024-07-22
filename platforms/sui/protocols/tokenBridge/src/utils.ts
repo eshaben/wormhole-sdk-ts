@@ -18,6 +18,8 @@ export const getTokenFromTokenRegistry = async (
     throw new Error(`Invalid Sui type: ${tokenType}`);
   }
 
+  tokenType = "0x2::sui::SUI";
+
   const tokenBridgeStateFields = await getObjectFields(provider, tokenBridgeStateObjectId);
   if (!tokenBridgeStateFields) {
     throw new Error(

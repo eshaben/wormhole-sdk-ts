@@ -148,6 +148,57 @@ export class SuiTokenBridge<N extends Network, C extends SuiChains> implements T
     throw ErrNotWrapped(coinType);
   }
 
+  async getTokenUniversalAddress(token: TokenAddress<C>): Promise<UniversalAddress> {
+    let coinType = (token as SuiAddress).getCoinType();
+    if (!isValidSuiType(coinType)) throw new Error(`Invalid Sui type: ${coinType}`);
+
+    const res = await getTokenFromTokenRegistry(this.provider, this.tokenBridgeObjectId, coinType);
+    const fields = getFieldsFromObjectResponse(res);
+    if (!fields) {
+      throw new Error(
+        `Token of type ${coinType} has not been registered with the token bridge. Has it been attested?`,
+      );
+    }
+
+    if (!isMoveStructObject(fields)) throw new Error("Expected fields to be a MoveStruct");
+
+    if (!("value" in fields)) throw new Error("Expected a `value` key in fields of MoveStruct");
+
+    const val = fields["value"];
+
+    if (!isMoveStructStruct(val)) throw new Error("Expected fields to be a MoveStruct");
+
+    // Normalize types
+    const type = trimSuiType(val.type);
+    coinType = trimSuiType(coinType);
+
+    // Check if wrapped or native asset. We check inclusion instead of equality
+    // because it saves us from making an additional RPC call to fetch the package ID.
+    if (type.includes(`native_asset::NativeAsset<${coinType}>`)) {
+      // fields.value.fields.token_address.fields.value.fields.data
+      const nestedFields = val.fields["fields"];
+      if (!isMoveStructStruct(nestedFields)) throw new Error("Expected fields to be a MoveStruct");
+      const address = nestedFields.fields["token_address"];
+      if (!isMoveStructStruct(address)) throw new Error("Expected fields to be a MoveStruct");
+
+      if (!("value" in address.fields))
+        throw new Error("Expected a `value` key in fields of MoveStruct");
+      const addressVal = address.fields["value"];
+
+      if (!isMoveStructStruct(addressVal)) throw new Error("Expected fields to be a MoveStruct");
+
+      const universalAddress = new Uint8Array(addressVal.fields["data"]! as Array<number>);
+      return new UniversalAddress(universalAddress);
+    }
+
+    throw new Error(`Token of type ${coinType} is not a native asset`);
+
+    //// TODO: implement
+    //return new UniversalAddress(
+    //  Buffer.from("9258181f5ceac8dbffb7030890243caed69a9599d2886d957a9cb7656af3bdb3", "hex"),
+    //);
+  }
+
   async hasWrappedAsset(token: TokenId): Promise<boolean> {
     try {
       await this.getWrappedAsset(token);

@@ -23,9 +23,7 @@ import {
   serialize,
   toNative,
   toUniversal,
-  universalAddress,
-  UniversalAddress,
-  sha3_256,
+  // universalAddress,
 } from "@wormhole-foundation/sdk-definitions";
 import { signSendWait } from "../../common.js";
 import { DEFAULT_TASK_TIMEOUT } from "../../config.js";
@@ -46,7 +44,7 @@ import {
   isSourceFinalized,
   isSourceInitiated,
 } from "../../types.js";
-import { getGovernedTokens, getGovernorLimits } from "../../whscan-api.js";
+// import { getGovernedTokens, getGovernorLimits } from "../../whscan-api.js";
 import { Wormhole } from "../../wormhole.js";
 import type { WormholeTransfer } from "../wormholeTransfer.js";
 
@@ -402,8 +400,8 @@ export namespace TokenTransfer {
     if (isAttested(receipt) || isRedeemed(receipt)) {
       if (!receipt.attestation.attestation) throw "Signed Attestation required to check for redeem";
 
-      if (receipt.attestation.attestation.payloadName === 'AttestMeta') {
-        throw new Error('Unable to track an AttestMeta receipt');
+      if (receipt.attestation.attestation.payloadName === "AttestMeta") {
+        throw new Error("Unable to track an AttestMeta receipt");
       }
 
       let isComplete = await TokenTransfer.isTransferComplete(
@@ -500,7 +498,9 @@ export namespace TokenTransfer {
         // otherwise, check to see if it is a wrapped token locally
         lookup = await tb.getOriginalAsset(token.address);
       } catch (e) {
+        // TODO: check this for ErrNotWrapped
         // not a from-chain native wormhole-wrapped one
+        console.error(e);
         lookup = token;
       }
     }
@@ -510,11 +510,32 @@ export namespace TokenTransfer {
       return lookup as TokenId<DC>;
     }
 
-    if (srcChain.chain === "Aptos") {
-      lookup.address = new UniversalAddress(
-        encoding.hex.encode(sha3_256(lookup.address.toString()), true),
-      );
+    // // TODO: move into getTokenUniversalAddress
+    // if (srcChain.chain === "Aptos") {
+    //   lookup.address = new UniversalAddress(
+    //     encoding.hex.encode(sha3_256(lookup.address.toString()), true),
+    //   );
+    // }
+
+    if (srcChain.chain === "Sui") {
+      // some chains may require a contract call to get the universal address
+      // this will do the rpc call to get the universal address
+      // const addr = await srcChain.getTokenUniversalAddress(lookup);
+      // const addr = await srcChain.getTokenExternalAddress(lookup);
     }
+
+    // TODO: move this above to skip this conditional and it's also wrong here, don't call with gas token
+    // if the token is native to the source chain, we need to look up its universal address
+    if (lookup.chain === srcChain.chain) {
+      // const tb = await srcChain.getTokenBridge();
+      // lookup.address = await tb.getTokenUniversalAddress(lookup.address as TokenAddress<SC>);
+    }
+
+    // TODO: lookup.address is 0x0...2::sui::SUI
+    // calling .toUniversalAddress on it just returns 0x0..2 which is wrong
+    // when the token is native to sui, we have to do a contract call to get the universal address
+    // otherwise dstTb.getWrapepdAsset will return false
+    // we have to make an rpc call because the universal address is the object id
 
     // otherwise, figure out what the token address representing the wormhole-wrapped token we're transferring
     const dstTb = await dstChain.getTokenBridge();
@@ -617,35 +638,35 @@ export namespace TokenTransfer {
     const srcToken = isNative(transfer.token.address)
       ? await srcChain.getNativeWrappedTokenId()
       : transfer.token;
-    const srcTokenUniversalAddress = universalAddress(srcToken);
+    //const srcTokenUniversalAddress = universalAddress(srcToken);
 
-    // Ensure the transfer would not violate governor transfer limits
-    const [tokens, limits] = await Promise.all([
-      getGovernedTokens(wh.config.api),
-      getGovernorLimits(wh.config.api),
-    ]);
+    //// Ensure the transfer would not violate governor transfer limits
+    //const [tokens, limits] = await Promise.all([
+    //  getGovernedTokens(wh.config.api),
+    //  getGovernorLimits(wh.config.api),
+    //]);
 
-    if (
-      limits !== null &&
-      srcChain.chain in limits &&
-      tokens !== null &&
-      srcChain.chain in tokens &&
-      srcTokenUniversalAddress in tokens[srcChain.chain]!
-    ) {
-      const limit = limits[srcChain.chain]!;
-      const tokenPrice = tokens[srcChain.chain]![srcTokenUniversalAddress]!;
-      const notionalTransferAmt = tokenPrice * amount.whole(srcAmountTruncated);
+    //if (
+    //  limits !== null &&
+    //  srcChain.chain in limits &&
+    //  tokens !== null &&
+    //  srcChain.chain in tokens &&
+    //  srcTokenUniversalAddress in tokens[srcChain.chain]!
+    //) {
+    //  const limit = limits[srcChain.chain]!;
+    //  const tokenPrice = tokens[srcChain.chain]![srcTokenUniversalAddress]!;
+    //  const notionalTransferAmt = tokenPrice * amount.whole(srcAmountTruncated);
 
-      if (limit.maxSize && notionalTransferAmt > limit.maxSize)
-        throw new Error(
-          `Transfer amount exceeds maximum size: ${notionalTransferAmt} > ${limit.maxSize}`,
-        );
+    //  if (limit.maxSize && notionalTransferAmt > limit.maxSize)
+    //    throw new Error(
+    //      `Transfer amount exceeds maximum size: ${notionalTransferAmt} > ${limit.maxSize}`,
+    //    );
 
-      if (notionalTransferAmt > limit.available)
-        throw new Error(
-          `Transfer amount exceeds available governed amount: ${notionalTransferAmt} > ${limit.available}`,
-        );
-    }
+    //  if (notionalTransferAmt > limit.available)
+    //    throw new Error(
+    //      `Transfer amount exceeds available governed amount: ${notionalTransferAmt} > ${limit.available}`,
+    //    );
+    //}
 
     const dstToken = await TokenTransfer.lookupDestinationToken(srcChain, dstChain, transfer.token);
     const dstDecimals = await dstChain.getDecimals(dstToken.address);
