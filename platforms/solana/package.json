@@ -1,6 +1,6 @@
 {
   "name": "@wormhole-foundation/sdk-solana",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wormhole-foundation/connect-sdk.git"
@@ -52,8 +52,8 @@
     "@coral-xyz/anchor": "0.29.0",
     "@coral-xyz/borsh": "0.29.0",
     "@solana/spl-token": "0.3.9",
-    "@solana/web3.js": "^1.95.2",
-    "@wormhole-foundation/sdk-connect": "0.10.5",
+    "@solana/web3.js": "^1.95.3",
+    "@wormhole-foundation/sdk-connect": "0.10.6",
     "rpc-websockets": "^7.10.0"
   },
   "type": "module",
